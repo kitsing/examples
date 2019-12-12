@@ -148,17 +148,16 @@ def get_batch_padded(source, batch_size):
     from math import ceil
     num_batches = int(ceil(source.shape[0]/batch_size))
     for b in range(num_batches):
-        yield source[b*batch_size:(b+1)*batch_size, :-1], source[b*batch_size:(b+1)*batch_size, 1:]
+        yield source[b*batch_size:(b+1)*batch_size, :-1].permute(1,0).cuda(), source[b*batch_size:(b+1)*batch_size, 1:].permute(1,0).cuda()
 
 def evaluate(data_source):
     # Turn on evaluation mode which disables dropout.
     model.eval()
     total_loss = 0.
     ntokens = len(corpus.dictionary)
-    if args.model != 'Transformer':
-        hidden = model.init_hidden(eval_batch_size)
     with torch.no_grad():
         for data, targets in get_batch_padded(data_source, eval_batch_size):
+            hidden = model.init_hidden(data.shape[1])
         # for i in range(0, data_source.size(0) - 1, 1):
             # data, targets = get_batch(data_source, i)
             if args.model == 'Transformer':
@@ -171,7 +170,7 @@ def evaluate(data_source):
             targets_flatten = torch.flatten(targets)
             total_loss += - output_flat_logsoftmax[torch.arange(targets_flatten.shape[0]), targets_flatten].sum().item()
             # total_loss += (targets != corpus.dictionary.word2idx['<pad>']).sum().item() * criterion(output_flat, targets).item()
-    return total_loss / (data_source.shape[0] * (data_source.shape[1] - 1))
+    return total_loss / (data_source[1:, :] != corpus.dictionary.word2idx['<pad>']).sum().item()
     # return total_loss / (len(data_source) - 1)
 
 
@@ -188,6 +187,7 @@ def train():
         # data, targets = get_batch(train_data, i)
         # Starting each batch, we detach the hidden state from how it was previously produced.
         # If we didn't, the model would try backpropagating all the way to start of the dataset.
+        hidden = model.init_hidden(data.shape[1])
         model.zero_grad()
         if args.model == 'Transformer':
             output = model(data)
