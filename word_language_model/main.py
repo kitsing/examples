@@ -86,10 +86,17 @@ def batchify(data, bsz):
     data = data.view(bsz, -1).t().contiguous()
     return data.to(device)
 
-eval_batch_size = 1
-train_data = batchify(corpus.train, args.batch_size)
-val_data = batchify(corpus.valid, eval_batch_size)
-test_data = batchify(corpus.test, eval_batch_size)
+def own_batchify(data):
+    return data.reshape((-1, 800))
+
+eval_batch_size = 24
+if False:
+    train_data = batchify(corpus.train, args.batch_size)
+    val_data = batchify(corpus.valid, eval_batch_size)
+    test_data = batchify(corpus.test, eval_batch_size)
+train_data = own_batchify(corpus.train)
+val_data = own_batchify(corpus.valid)
+test_data = own_batchify(corpus.test)
 
 ###############################################################################
 # Build the model
@@ -132,6 +139,16 @@ def get_batch(source, i):
     target = source[i+1:i+1+seq_len].view(-1)
     return data, target
 
+def get_batch_padded(source, batch_size):
+    """
+
+    :param source: num_entries x max_seq_len
+    :return: data, target
+    """
+    from math import ceil
+    num_batches = int(ceil(source.shape[0]/batch_size))
+    for b in range(num_batches):
+        yield source[b*batch_size:(b+1)*batch_size, :-1], source[b*batch_size:(b+1)*batch_size, 1:]
 
 def evaluate(data_source):
     # Turn on evaluation mode which disables dropout.
@@ -141,18 +158,21 @@ def evaluate(data_source):
     if args.model != 'Transformer':
         hidden = model.init_hidden(eval_batch_size)
     with torch.no_grad():
-        for i in range(0, data_source.size(0) - 1, 1):
-            data, targets = get_batch(data_source, i)
-            if data[0].cpu().item() == corpus.dictionary.word2idx['<s>']:
-                hidden = model.init_hidden(eval_batch_size)
+        for data, targets in get_batch_padded(data_source, eval_batch_size):
+        # for i in range(0, data_source.size(0) - 1, 1):
+            # data, targets = get_batch(data_source, i)
             if args.model == 'Transformer':
                 output = model(data)
             else:
                 output, hidden = model(data, hidden)
                 hidden = repackage_hidden(hidden)
             output_flat = output.view(-1, ntokens)
-            total_loss += len(data) * criterion(output_flat, targets).item()
-    return total_loss / (len(data_source) - 1)
+            output_flat_logsoftmax = torch.log_softmax(output_flat, dim=1)
+            targets_flatten = torch.flatten(targets)
+            total_loss += - output_flat_logsoftmax[torch.arange(targets_flatten.shape[0]), targets_flatten].sum().item()
+            # total_loss += (targets != corpus.dictionary.word2idx['<pad>']).sum().item() * criterion(output_flat, targets).item()
+    return total_loss / (data_source.shape[0] * (data_source.shape[1] - 1))
+    # return total_loss / (len(data_source) - 1)
 
 
 def train():
@@ -163,8 +183,9 @@ def train():
     ntokens = len(corpus.dictionary)
     if args.model != 'Transformer':
         hidden = model.init_hidden(args.batch_size)
-    for batch, i in enumerate(range(0, train_data.size(0) - 1, args.bptt)):
-        data, targets = get_batch(train_data, i)
+    # for batch, i in enumerate(range(0, train_data.size(0) - 1, args.bptt)):
+    for batch, (data, targets) in enumerate(get_batch_padded(train_data, args.batch_size)):
+        # data, targets = get_batch(train_data, i)
         # Starting each batch, we detach the hidden state from how it was previously produced.
         # If we didn't, the model would try backpropagating all the way to start of the dataset.
         model.zero_grad()
@@ -173,7 +194,11 @@ def train():
         else:
             hidden = repackage_hidden(hidden)
             output, hidden = model(data, hidden)
-        loss = criterion(output.view(-1, ntokens), targets)
+        output_flat = output.view(-1, ntokens)
+        output_flat_logsoftmax = torch.log_softmax(output_flat, dim=1)
+        targets_flatten = torch.flatten(targets)
+        loss = - output_flat_logsoftmax[torch.arange(targets_flatten.shape[0]), targets_flatten].sum()
+        # loss = criterion(output.view(-1, ntokens), targets)
         loss.backward()
 
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.

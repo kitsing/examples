@@ -49,7 +49,7 @@ class Corpus(object):
                 ids = []
                 for word in words:
                     ids.append(self.dictionary.word2idx[word])
-                remaining = []
+                remaining = [self.dictionary.word2idx['<pad>']] * (max_len - len(ids))
                 idss.append(torch.tensor(ids+remaining).type(torch.int64))
             ids = torch.cat(idss)
 
