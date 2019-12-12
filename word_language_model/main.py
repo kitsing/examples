@@ -141,7 +141,7 @@ def evaluate(data_source):
     if args.model != 'Transformer':
         hidden = model.init_hidden(eval_batch_size)
     with torch.no_grad():
-        for i in range(0, data_source.size(0) - 1, args.bptt):
+        for i in range(0, data_source.size(0) - 1, 1):
             data, targets = get_batch(data_source, i)
             if data[0].cpu().item() == corpus.dictionary.word2idx['<s>']:
                 hidden = model.init_hidden(eval_batch_size)
