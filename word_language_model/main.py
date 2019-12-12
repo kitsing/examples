@@ -86,7 +86,7 @@ def batchify(data, bsz):
     data = data.view(bsz, -1).t().contiguous()
     return data.to(device)
 
-eval_batch_size = 10
+eval_batch_size = 1
 train_data = batchify(corpus.train, args.batch_size)
 val_data = batchify(corpus.valid, eval_batch_size)
 test_data = batchify(corpus.test, eval_batch_size)
@@ -143,6 +143,8 @@ def evaluate(data_source):
     with torch.no_grad():
         for i in range(0, data_source.size(0) - 1, args.bptt):
             data, targets = get_batch(data_source, i)
+            if data[0].cpu().item() == corpus.dictionary.word2idx['<s>']:
+                hidden = model.init_hidden(eval_batch_size)
             if args.model == 'Transformer':
                 output = model(data)
             else:
