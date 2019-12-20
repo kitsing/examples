@@ -10,7 +10,7 @@ class Dictionary(object):
     def add_word(self, word):
         if word not in self.word2idx:
             self.idx2word.append(word)
-            self.word2idx[word] = len(self.idx2word) - 1
+            self.word2idx[word] = int(word)
         return self.word2idx[word]
 
     def __len__(self):
@@ -20,14 +20,14 @@ class Dictionary(object):
 class Corpus(object):
     def __init__(self, path):
         self.dictionary = Dictionary()
-        self.dictionary.add_word('<pad>')
+        self.dictionary.add_word('1')
         self.train = self.tokenize(os.path.join(path, 'train.txt.r'))
         self.valid = self.tokenize(os.path.join(path, 'valid.txt.r'))
         self.test = self.tokenize(os.path.join(path, 'test.txt.r'))
         magic_size = 50265
         counter = 0
         while len(self.dictionary) < magic_size:
-            self.dictionary.add_word(counter)
+            self.dictionary.add_word(str(counter))
             counter += 1
 
     def tokenize(self, path):
@@ -36,7 +36,7 @@ class Corpus(object):
         # Add words to the dictionary
         with open(path, 'r', encoding="utf8") as f:
             for line in f:
-                words = line.split(' ') + ['<eos>']
+                words = line.strip().split(' ')
                 for word in words:
                     self.dictionary.add_word(word)
         print(f'dict length: {len(self.dictionary)}')
@@ -50,7 +50,7 @@ class Corpus(object):
                 ids = []
                 for word in words:
                     ids.append(self.dictionary.word2idx[word])
-                remaining = [self.dictionary.word2idx['<pad>']] * (max_len - len(ids))
+                remaining = [self.dictionary.word2idx['1']] * (max_len - len(ids))
                 idss.append(torch.tensor(ids+remaining).type(torch.int64))
             ids = torch.cat(idss)
 

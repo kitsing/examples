@@ -45,7 +45,7 @@ parser.add_argument('--save', type=str, default='model.pt',
                     help='path to save the final model')
 parser.add_argument('--onnx-export', type=str, default='',
                     help='path to export the final model in onnx format')
-
+parser.add_argument('--load', type=str, default=None)
 parser.add_argument('--nhead', type=int, default=2,
                     help='the number of heads in the encoder/decoder of the transformer model')
 
@@ -157,7 +157,8 @@ def evaluate(data_source):
     ntokens = len(corpus.dictionary)
     with torch.no_grad():
         for data, targets in get_batch_padded(data_source, eval_batch_size):
-            hidden = model.init_hidden(data.shape[1])
+            if args.model != 'Transformer':
+                hidden = model.init_hidden(data.shape[1])
         # for i in range(0, data_source.size(0) - 1, 1):
             # data, targets = get_batch(data_source, i)
             if args.model == 'Transformer':
@@ -169,8 +170,8 @@ def evaluate(data_source):
             output_flat_logsoftmax = torch.log_softmax(output_flat, dim=1)
             targets_flatten = torch.flatten(targets)
             total_loss += - output_flat_logsoftmax[torch.arange(targets_flatten.shape[0]), targets_flatten].sum().item()
-            # total_loss += (targets != corpus.dictionary.word2idx['<pad>']).sum().item() * criterion(output_flat, targets).item()
-    return total_loss / (data_source[1:, :] != corpus.dictionary.word2idx['<pad>']).sum().item()
+            # total_loss += (targets != corpus.dictionary.word2idx['1']).sum().item() * criterion(output_flat, targets).item()
+    return total_loss / (data_source[1:, :] != corpus.dictionary.word2idx['1']).sum().item()
     # return total_loss / (len(data_source) - 1)
 
 
@@ -187,7 +188,8 @@ def train():
         # data, targets = get_batch(train_data, i)
         # Starting each batch, we detach the hidden state from how it was previously produced.
         # If we didn't, the model would try backpropagating all the way to start of the dataset.
-        hidden = model.init_hidden(data.shape[1])
+        if args.model != 'Transformer':
+            hidden = model.init_hidden(data.shape[1])
         model.zero_grad()
         if args.model == 'Transformer':
             output = model(data)
@@ -214,7 +216,7 @@ def train():
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
                     'loss {:5.2f} | ppl {:8.2f}'.format(
                 epoch, batch, len(train_data) // args.bptt, lr,
-                elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
+                elapsed * 1000 / args.log_interval, cur_loss, 0.))
             total_loss = 0
             start_time = time.time()
 
@@ -231,7 +233,9 @@ def export_onnx(path, batch_size, seq_len):
 # Loop over epochs.
 lr = args.lr
 best_val_loss = None
-
+if args.load is not None:
+    with open(args.load, 'rb') as f:
+        model = torch.load(f)
 # At any point you can hit Ctrl + C to break out of training early.
 try:
     for epoch in range(1, args.epochs+1):
