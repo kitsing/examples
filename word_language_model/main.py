@@ -10,7 +10,7 @@ import torch.onnx
 import data
 import model
 
-parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Language Model')
+parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM/GRU/Transformer Language Model')
 parser.add_argument('--data', type=str, default='./data/wikitext-2',
                     help='location of the data corpus')
 parser.add_argument('--model', type=str, default='LSTM',
@@ -48,6 +48,8 @@ parser.add_argument('--onnx-export', type=str, default='',
 parser.add_argument('--load', type=str, default=None)
 parser.add_argument('--nhead', type=int, default=2,
                     help='the number of heads in the encoder/decoder of the transformer model')
+parser.add_argument('--dry-run', action='store_true',
+                    help='verify the code and the model')
 
 args = parser.parse_args()
 
@@ -108,7 +110,7 @@ if args.model == 'Transformer':
 else:
     model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
 
-criterion = nn.CrossEntropyLoss()
+criterion = nn.NLLLoss()
 
 ###############################################################################
 # Training code
@@ -163,6 +165,7 @@ def evaluate(data_source):
             # data, targets = get_batch(data_source, i)
             if args.model == 'Transformer':
                 output = model(data)
+                output = output.view(-1, ntokens)
             else:
                 output, hidden = model(data, hidden)
                 hidden = repackage_hidden(hidden)
@@ -193,6 +196,7 @@ def train():
         model.zero_grad()
         if args.model == 'Transformer':
             output = model(data)
+            output = output.view(-1, ntokens)
         else:
             hidden = repackage_hidden(hidden)
             output, hidden = model(data, hidden)
@@ -206,7 +210,7 @@ def train():
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
         for p in model.parameters():
-            p.data.add_(-lr, p.grad.data)
+            p.data.add_(p.grad, alpha=-lr)
 
         total_loss += loss.item()
 
@@ -219,6 +223,8 @@ def train():
                 elapsed * 1000 / args.log_interval, cur_loss, 0.))
             total_loss = 0
             start_time = time.time()
+        if args.dry_run:
+            break
 
 
 def export_onnx(path, batch_size, seq_len):

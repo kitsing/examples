@@ -1,4 +1,5 @@
 # PyTorch Examples
+![Run Examples](https://github.com/pytorch/examples/workflows/Run%20Examples/badge.svg)
 
 A repository showcasing examples of using [PyTorch](https://github.com/pytorch/pytorch)
 
