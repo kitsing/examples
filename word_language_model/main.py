@@ -173,7 +173,7 @@ def evaluate(data_source):
             output_flat_logsoftmax = torch.log_softmax(output_flat, dim=1)
             targets_flatten = targets.flatten()
             targets_masks = (targets_flatten != corpus.word2idx[corpus.padding]).to(torch.get_default_dtype())
-            total_loss += - (torch.gather(output_flat_logsoftmax,1,targets_flatten[None, :]) * targets_masks).reshape(-1, data.shape[1]).sum()
+            total_loss += - (torch.gather(output_flat_logsoftmax,1,targets_flatten[None, :]) * targets_masks).sum()
             # total_loss += (targets != corpus.dictionary.word2idx['1']).sum().item() * criterion(output_flat, targets).item()
     return total_loss / (data_source[1:, :] != corpus.dictionary.word2idx['1']).sum().item()
     # return total_loss / (len(data_source) - 1)
@@ -205,7 +205,7 @@ def train():
         output_flat_logsoftmax = torch.log_softmax(output_flat, dim=1)
         targets_flatten = targets.flatten()
         targets_masks = (targets_flatten!=corpus.word2idx[corpus.padding]).to(torch.get_default_dtype())
-        loss = - (torch.gather(output_flat_logsoftmax,1,targets_flatten[None, :]) * targets_masks).reshape(-1, data.shape[1]).sum(dim=0).mean()
+        loss = - (torch.gather(output_flat_logsoftmax,1,targets_flatten[None, :]) * targets_masks).sum() / targets_masks.sum()
         # loss = criterion(output.view(-1, ntokens), targets)
         loss.backward()
 
